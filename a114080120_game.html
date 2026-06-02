@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>極速神廚大亂鬥 - Cooking Express Multiplayer</title>
+    <!-- 引入 Tailwind CSS 確保極佳的響應式與精美 UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+TC:wght@400;700;900&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #1a1a2e;
+            user-select: none;
+            overflow-x: hidden;
+        }
+
+        .title-font {
+            font-family: 'ZCOOL KuaiLe', sans-serif;
+        }
+
+        /* 遊戲畫布與像素風網格背景 */
+        #gameCanvas {
+            background-color: #2c3e50;
+            background-image: 
+                radial-gradient(#34495e 20%, transparent 20%),
+                radial-gradient(#34495e 20%, transparent 20%);
+            background-size: 40px 40px;
+            background-position: 0 0, 20px 20px;
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.6);
+        }
+
+        /* 圓角與發光特效 */
+        .neon-border-blue {
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+            border: 2px solid rgba(59, 130, 246, 0.8);
+        }
+        
+        .neon-border-red {
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+            border: 2px solid rgba(239, 68, 68, 0.8);
+        }
+
+        .neon-text {
+            text-shadow: 0 0 8px rgba(251, 191, 36, 0.6);
+        }
+
+        /* 按鍵提示樣式 */
+        .key-cap {
+            background: linear-gradient(to bottom, #ffffff 0%, #e2e8f0 100%);
+            border-bottom: 3px solid #cbd5e1;
+            border-radius: 4px;
+            color: #1e293b;
+            font-weight: bold;
+            padding: 2px 6px;
+            font-size: 0.75rem;
+            display: inline-block;
+            box-shadow: 0 2px 2px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white flex flex-col items-center justify-between p-2 md:p-4">
+
+    <!-- 頂部標題與主選單 -->
+    <header class="w-full max-w-6xl flex flex-col sm:flex-row justify-between items-center bg-gray-900 bg-opacity-90 p-4 rounded-2xl border border-gray-700 shadow-2xl mb-2 gap-4">
+        <div class="flex items-center gap-3">
+            <!-- 迷你遊戲圖標 SVG -->
+            <svg class="w-10 h-10 text-yellow-500 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+            </svg>
+            <div>
+                <h1 class="text-2xl md:text-3xl font-black title-font tracking-wider text-yellow-400 neon-text">極速神廚大亂鬥</h1>
+                <p class="text-xs text-gray-400">合作、切菜、烹飪、上菜！</p>
+            </div>
+        </div>
+
+        <!-- 分數板 -->
+        <div class="flex gap-4 text-center">
+            <div class="bg-gray-800 px-4 py-2 rounded-xl border border-gray-700">
+                <div class="text-xs text-gray-400 font-bold">目前分數</div>
+                <div id="scoreVal" class="text-2xl font-black text-green-400">0</div>
+            </div>
+            <div class="bg-gray-800 px-4 py-2 rounded-xl border border-gray-700">
+                <div class="text-xs text-gray-400 font-bold">歷史最高</div>
+                <div id="highScoreVal" class="text-2xl font-black text-yellow-400">0</div>
+            </div>
+            <div class="bg-gray-800 px-4 py-2 rounded-xl border border-gray-700 min-w-[80px]">
+                <div class="text-xs text-gray-400 font-bold">剩餘時間</div>
+                <div id="timerVal" class="text-2xl font-black text-red-400">120s</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 遊戲主要控制區域 -->
+    <main class="w-full max-w-6xl flex flex-col lg:flex-row gap-4 items-stretch flex-grow">
+        
+        <!-- 左側：客人訂單看板 (動態更新) -->
+        <section class="w-full lg:w-1/4 flex flex-col gap-3 bg-gray-900 bg-opacity-85 p-4 rounded-2xl border border-gray-700">
+            <div class="flex justify-between items-center border-b border-gray-700 pb-2">
+                <h2 class="text-lg font-bold text-yellow-400 flex items-center gap-2">
+                    <span>📋 顧客點單</span>
+                    <span id="orderCount" class="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">0</span>
+                </h2>
+                <span class="text-xs text-gray-400">出餐得高分！</span>
+            </div>
+            
+            <!-- 訂單容器 -->
+            <div id="orderContainer" class="flex flex-row lg:flex-col gap-2 overflow-x-auto lg:overflow-x-visible lg:overflow-y-auto max-h-[140px] lg:max-h-[450px] flex-grow pr-1">
+                <!-- 訂單卡片會透過 JS 渲染到此處 -->
+            </div>
+        </section>
+
+        <!-- 中間：遊戲畫布 (Canvas) -->
+        <section class="w-full lg:w-2/3 flex flex-col bg-gray-950 p-2 rounded-2xl border-2 border-gray-800 relative justify-center items-center min-h-[400px] md:min-h-[500px]">
+            <!-- 遊戲畫布 -->
+            <canvas id="gameCanvas" width="800" height="500" class="w-full h-full rounded-xl block max-w-full aspect-[8/5]"></canvas>
+
+            <!-- 浮空提示/浮動教學 -->
+            <div id="gameInstructionOverlay" class="absolute inset-0 bg-black bg-opacity-90 flex flex-col items-center justify-center p-6 rounded-xl text-center z-20">
+                <h3 class="text-3xl font-bold text-yellow-400 mb-4 title-font">👩‍🍳 廚房新手指南 👨‍🍳</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl text-left mb-6">
+                    <div class="bg-blue-900 bg-opacity-40 p-3 rounded-lg border border-blue-500">
+                        <h4 class="text-blue-400 font-bold mb-2 flex items-center gap-1">
+                            <span class="inline-block w-3 h-3 rounded-full bg-blue-500"></span> 玩家 A (主廚藍)
+                        </h4>
+                        <p class="text-sm text-gray-300">移動：<span class="key-cap">W</span><span class="key-cap">A</span><span class="key-cap">S</span><span class="key-cap">D</span></p>
+                        <p class="text-sm text-gray-300 mt-1">互動 (拿/切/煮/送)：<span class="key-cap">Space 鍵</span></p>
+                    </div>
+                    <div class="bg-red-900 bg-opacity-40 p-3 rounded-lg border border-red-500">
+                        <h4 class="text-red-400 font-bold mb-2 flex items-center gap-1">
+                            <span class="inline-block w-3 h-3 rounded-full bg-red-500"></span> 玩家 B (主廚紅)
+                        </h4>
+                        <p class="text-sm text-gray-300">移動：<span class="key-cap">↑</span><span class="key-cap">↓</span><span class="key-cap">←</span><span class="key-cap">→</span></p>
+                        <p class="text-sm text-gray-300 mt-1">互動 (拿/切/煮/送)：<span class="key-cap">Enter 鍵</span></p>
+                    </div>
+                </div>
+
+                <div class="mb-6 max-w-xl text-center">
+                    <h4 class="text-yellow-500 font-bold mb-1">💡 基礎烹飪步驟：</h4>
+                    <p class="text-xs text-gray-300">
+                        1. 走到【食材箱】拿起食材。 ➡️ 2. 帶到【砧板】切碎 (需站在旁邊按住互動)。<br>
+                        3. 帶到【瓦斯爐】烹煮 (需等待進度條滿)。 ➡️ 4. 帶到【出餐口】完成客人訂單！
+                    </p>
+                </div>
+
+                <div class="flex flex-wrap gap-4 justify-center">
+                    <button id="btnPlaySingle" class="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-extrabold px-6 py-3 rounded-full shadow-lg transform hover:scale-105 transition text-lg">
+                        單人挑戰 🎮
+                    </button>
+                    <button id="btnPlayCoop" class="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-extrabold px-6 py-3 rounded-full shadow-lg transform hover:scale-105 transition text-lg">
+                        雙人合作 👥
+                    </button>
+                </div>
+            </div>
+
+            <!-- 結算畫面 -->
+            <div id="gameOverOverlay" class="absolute inset-0 bg-black bg-opacity-95 hidden flex-col items-center justify-center p-6 rounded-xl text-center z-20">
+                <span class="text-6xl mb-4">🏆</span>
+                <h3 class="text-4xl font-black text-yellow-400 mb-2 title-font">時間到！廚房打烊</h3>
+                <p class="text-gray-400 mb-6">兩位大廚表現得相當精采，辛苦了！</p>
+                
+                <div class="bg-gray-800 p-6 rounded-2xl border border-gray-700 max-w-sm w-full mb-6 shadow-xl">
+                    <div class="flex justify-between items-center mb-2 border-b border-gray-700 pb-2">
+                        <span class="text-gray-400 font-semibold">最終分數</span>
+                        <span id="finalScore" class="text-3xl font-black text-green-400">0</span>
+                    </div>
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-gray-400 text-sm">成功出餐數</span>
+                        <span id="completedOrders" class="text-white font-bold">0 組</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400 text-sm">失敗流失訂單</span>
+                        <span id="failedOrders" class="text-red-400 font-bold">0 組</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-4">
+                    <button id="btnRestart" class="bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-600 hover:to-amber-700 text-gray-950 font-black px-8 py-3 rounded-full shadow-lg transform hover:scale-105 transition text-lg">
+                        再玩一次 🔄
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 右側：食材資料庫與即時事件 -->
+        <section class="w-full lg:w-1/4 flex flex-col gap-4 bg-gray-900 bg-opacity-85 p-4 rounded-2xl border border-gray-700">
+            <h2 class="text-lg font-bold text-yellow-400 border-b border-gray-700 pb-2">🍔 食材烹飪手冊</h2>
+            <div class="grid grid-cols-2 lg:grid-cols-1 gap-2 flex-grow overflow-y-auto max-h-[160px] lg:max-h-none">
+                <div class="bg-gray-800 p-2 rounded-xl flex items-center gap-2 border border-gray-700">
+                    <span class="text-2xl">🥩</span>
+                    <div>
+                        <div class="text-xs font-bold text-red-300">牛排 (Steak)</div>
+                        <p class="text-[10px] text-gray-400">需切碎並在瓦斯爐香煎。</p>
+                    </div>
+                </div>
+                <div class="bg-gray-800 p-2 rounded-xl flex items-center gap-2 border border-gray-700">
+                    <span class="text-2xl">🥬</span>
+                    <div>
+                        <div class="text-xs font-bold text-green-300">生菜 (Lettuce)</div>
+                        <p class="text-[10px] text-gray-400">只需切碎，無須烹煮。</p>
+                    </div>
+                </div>
+                <div class="bg-gray-800 p-2 rounded-xl flex items-center gap-2 border border-gray-700">
+                    <span class="text-2xl">🍅</span>
+                    <div>
+                        <div class="text-xs font-bold text-red-400">番茄 (Tomato)</div>
+                        <p class="text-[10px] text-gray-400">只需切碎，生食即可。</p>
+                    </div>
+                </div>
+                <div class="bg-gray-800 p-2 rounded-xl flex items-center gap-2 border border-gray-700">
+                    <span class="text-2xl">🧀</span>
+                    <div>
+                        <div class="text-xs font-bold text-yellow-300">起司 (Cheese)</div>
+                        <p class="text-[10px] text-gray-400">直接加進成品，不需加工！</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 控制提示 & 音效設定 -->
+            <div class="mt-auto bg-gray-800 p-3 rounded-xl border border-gray-700 text-xs">
+                <div class="font-bold text-yellow-400 mb-1">🎮 手機/平板虛擬按鈕：</div>
+                <p class="text-gray-400 mb-2 leading-relaxed">若是行動裝置，請點擊下方虛擬按鍵遊玩。</p>
+                <div class="flex justify-between items-center border-t border-gray-700 pt-2 text-gray-400">
+                    <span>音效設定</span>
+                    <button id="btnToggleSound" class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-[10px] font-bold">🔊 開啟中</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 行動裝置/派對專用虛擬控制台 (僅在小螢幕或雙人模式時提供極佳觸控體驗) -->
+    <footer class="w-full max-w-6xl mt-4 bg-gray-900 bg-opacity-90 p-4 rounded-2xl border border-gray-700 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div class="w-full flex justify-between items-center md:w-auto">
+            <span class="text-sm font-bold text-gray-300 flex items-center gap-2">
+                <span class="animate-ping inline-block w-2.5 h-2.5 rounded-full bg-green-400"></span>
+                <span>派對實體按鍵區 (手機/平板/多人點擊)</span>
+            </span>
+        </div>
+        
+        <div class="w-full flex gap-4">
+            <!-- 藍主廚 虛擬控制 -->
+            <div id="p1TouchControls" class="flex-1 flex gap-2 justify-center items-center p-2 bg-blue-900 bg-opacity-20 rounded-xl border border-blue-500">
+                <div class="grid grid-cols-3 gap-1">
+                    <div></div>
+                    <button class="touch-btn bg-blue-600 active:bg-blue-800 text-white w-10 h-10 rounded-lg flex items-center justify-center font-bold" data-player="1" data-dir="up">W</button>
+                    <div></div>
+                    <button class="touch-btn bg-blue-600 active:bg-blue-800 text-white w-10 h-10 rounded-lg flex items-center justify-center font-bold" data-player="1" data-dir="left">A</button>
+                    <button class="touch-btn bg-blue-600 active:bg-blue-800 text-white w-10 h-10 rounded-lg flex items-center justify-center font-bold" data-player="1" data-dir="down">S</button>
+                    <button class="touch-btn bg-blue-600 active:bg-blue-800 text-white w-10 h-10 rounded-lg flex items-center justify-center font-bold" data-player="1" data-dir="right">D</button>
+                </div>
+                <button class="touch-action bg-blue-500 active:bg-blue-700 text-white h-16 px-4 rounded-xl font-black text-sm flex-grow shadow-md" data-player="1">
+                    玩家 A 動作<br><span class="text-[10px] opacity-80">(Space)</span>
+                </button>
+            </div>
+
+            <!-- 紅主廚 虛擬控制 -->
+            <div id="p2TouchControls" class="flex-1 flex gap-2 justify-center items-center p-2 bg-red-900 bg-opacity-20 rounded-xl border border-red-500 hidden">
+                <div class="grid grid-cols-3 gap-1">
+                    <div></div>
+                    <button class="touch-btn bg-red-600 active:bg-red-800 text-white w-10 h-10 rounded-lg flex items-center justify-center font-bold" data-player="2" data-dir="up">↑</button>
+                    <div></div>
+                    <button class="touch-btn bg-red-600 active:bg-red-800 text-white w-10 h-10 rounded-lg flex items-center justify-center font-bold" data-player="2" data-dir="left">←</button>
+                    <button class="touch-btn bg-red-600 active:bg-red-800 text-white w-10 h-10 rounded-lg flex items-center justify-center font-bold" data-player="2" data-dir="down">↓</button>
+                    <button class="touch-btn bg-red-600 active:bg-red-800 text-white w-10 h-10 rounded-lg flex items-center justify-center font-bold" data-player="2" data-dir="right">→</button>
+                </div>
+                <button class="touch-action bg-red-500 active:bg-red-700 text-white h-16 px-4 rounded-xl font-black text-sm flex-grow shadow-md" data-player="2">
+                    玩家 B 動作<br><span class="text-[10px] opacity-80">(Enter)</span>
+                </button>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 簡易內建合成音效系統 (避免需要加載外部音效檔失敗) -->
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let soundEnabled = true;
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                if (type === 'pickup') { // 拿取食材
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.12);
+                } else if (type === 'chop') { // 切菜
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                    osc.frequency.linearRampToValueAtTime(80, audioCtx.currentTime + 0.08);
+                    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.09);
+                } else if (type === 'cook') { // 開始煮
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+                    osc.frequency.linearRampToValueAtTime(120, audioCtx.currentTime + 0.2);
+                    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.21);
+                } else if (type === 'success') { // 上菜成功
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+                    osc.frequency.setValueAtTime(554.37, audioCtx.currentTime + 0.1);
+                    osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.2);
+                    osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.4);
+                    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.45);
+                } else if (type === 'fail') { // 失敗/過期
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, audioCtx.currentTime);
+                    osc.frequency.linearRampToValueAtTime(110, audioCtx.currentTime + 0.3);
+                    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.32);
+                } else if (type === 'click') { // 按鈕
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.06);
+                }
+            } catch (e) {
+                console.log("音效撥放失敗，請先與頁面進行互動：", e);
+            }
+        }
+
+        // 音效切換按鈕
+        document.getElementById('btnToggleSound').addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            document.getElementById('btnToggleSound').textContent = soundEnabled ? '🔊 開啟中' : '🔇 已靜音';
+            document.getElementById('btnToggleSound').className = soundEnabled 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-[10px] font-bold' 
+                : 'bg-gray-600 hover:bg-gray-700 text-white px-2 py-1 rounded text-[10px] font-bold';
+            playSound('click');
+        });
+    </script>
+
+    <!-- 遊戲主要邏輯 -->
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 食材與菜單常數
+        const INGREDIENTS = {
+            STEAK: { name: '🥩 生牛肉', choppedName: '🥩 切碎牛肉', cookedName: '🥩 香煎牛排', color: '#c0392b', needChop: true, needCook: true },
+            LETTUCE: { name: '🥬 生菜', choppedName: '🥬 切碎生菜', color: '#27ae60', needChop: true, needCook: false },
+            TOMATO: { name: '🍅 番茄', choppedName: '🍅 切碎番茄', color: '#e74c3c', needChop: true, needCook: false },
+            CHEESE: { name: '🧀 起司塊', color: '#f1c40f', needChop: false, needCook: false }
+        };
+
+        // 菜餚食譜清單 (客人點單用)
+        const RECIPES = [
+            { name: '經典厚牛堡', ingredients: ['🥩 香煎牛排', '🧀 起司塊'], score: 100, icon: '🍔' },
+            { name: '總匯沙拉', ingredients: ['🥬 切碎生菜', '🍅 切碎番茄'], score: 80, icon: '🥗' },
+            { name: '極星起司沙拉', ingredients: ['🥬 切碎生菜', '🍅 切碎番茄', '🧀 起司塊'], score: 120, icon: '🥗' },
+            { name: '主廚豪華排餐', ingredients: ['🥩 香煎牛排', '🥬 切碎生菜', '🍅 切碎番茄'], score: 180, icon: '🍱' },
+            { name: '起司香煎牛排', ingredients: ['🥩 香煎牛排', '🧀 起司塊', '🍅 切碎番茄'], score: 160, icon: '🥩' }
+        ];
+
+        // 廚房地圖靜態設施
+        const STATIONS = [
+            // 食材箱 (原料)
+            { id: 'box_steak', x: 50, y: 50, w: 70, h: 60, type: 'box', label: '🥩 🥩', ingredient: 'STEAK', color: '#c0392b' },
+            { id: 'box_lettuce', x: 150, y: 50, w: 70, h: 60, type: 'box', label: '🥬 🥬', ingredient: 'LETTUCE', color: '#27ae60' },
+            { id: 'box_tomato', x: 250, y: 50, w: 70, h: 60, type: 'box', label: '🍅 🍅', ingredient: 'TOMATO', color: '#d35400' },
+            { id: 'box_cheese', x: 350, y: 50, w: 70, h: 60, type: 'box', label: '🧀 🧀', ingredient: 'CHEESE', color: '#f39c12' },
+
+            // 處理台 / 切菜砧板
+            { id: 'board_1', x: 50, y: 250, w: 70, h: 60, type: 'board', label: '切菜砧板', processedItem: null, processProgress: 0, color: '#d2b48c' },
+            { id: 'board_2', x: 50, y: 350, w: 70, h: 60, type: 'board', label: '切菜砧板', processedItem: null, processProgress: 0, color: '#d2b48c' },
+
+            // 烹飪區 / 瓦斯爐
+            { id: 'stove_1', x: 700, y: 150, w: 70, h: 60, type: 'stove', label: '瓦斯爐', processedItem: null, processProgress: 0, isCooking: false, color: '#7f8c8d' },
+            { id: 'stove_2', x: 700, y: 250, w: 70, h: 60, type: 'stove', label: '瓦斯爐', processedItem: null, processProgress: 0, isCooking: false, color: '#7f8c8d' },
+
+            // 盤子集中區 (盤子用於盛裝多個食材，組成最後的菜餚送出)
+            { id: 'plate_counter', x: 500, y: 50, w: 80, h: 60, type: 'plates', label: '🍽️ 乾淨盤子', color: '#bdc3c7' },
+
+            // 垃圾桶 (把手上不要的食材或盤子清空)
+            { id: 'trash', x: 700, y: 380, w: 60, h: 65, type: 'trash', label: '🗑️ 垃圾桶', color: '#95a5a6' },
+
+            // 出餐台
+            { id: 'delivery', x: 500, y: 410, w: 120, h: 60, type: 'delivery', label: '🛎️ 出餐窗口', color: '#2ecc71' }
+        ];
+
+        // 遊戲狀態變數
+        let isCoopMode = false;
+        let gameActive = false;
+        let gameTime = 120; // 兩分鐘
+        let score = 0;
+        let highScore = parseInt(localStorage.getItem('cooking_highscore') || '0');
+        let orders = [];
+        let nextOrderId = 1;
+        let completedCount = 0;
+        let failedCount = 0;
+        let particles = []; // 特效粒子效果
+
+        // 初始化玩家物件
+        let players = {
+            p1: {
+                id: 'p1',
+                x: 300,
+                y: 250,
+                radius: 20,
+                color: '#3b82f6', // 藍色主廚
+                speed: 4,
+                holding: null, // 持有物件: null, or { type: 'ingredient'|'plate', name: '生牛肉', isChopped: false, isCooked: false, ingredients: [] }
+                dirX: 0,
+                dirY: 0,
+                isInteracting: false,
+                name: '大廚 藍藍'
+            },
+            p2: {
+                id: 'p2',
+                x: 450,
+                y: 250,
+                radius: 20,
+                color: '#ef4444', // 紅色主廚
+                speed: 4,
+                holding: null,
+                dirX: 0,
+                dirY: 0,
+                isInteracting: false,
+                name: '大廚 紅紅'
+            }
+        };
+
+        // 按鍵監聽狀態
+        const keys = {};
+
+        // 設定最高分顯示
+        document.getElementById('highScoreVal').textContent = highScore;
+
+        // --- 初始化與操控監聽 ---
+
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            
+            // 互動按鍵單次觸發
+            if (gameActive) {
+                if (e.code === 'Space') {
+                    handleInteraction(players.p1);
+                }
+                if (e.code === 'Enter' && isCoopMode) {
+                    handleInteraction(players.p2);
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+
+        // 觸控按鈕綁定 (支援行動裝置)
+        document.querySelectorAll('.touch-btn').forEach(btn => {
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const player = btn.getAttribute('data-player') === '1' ? players.p1 : players.p2;
+                const dir = btn.getAttribute('data-dir');
+                if (dir === 'up') player.dirY = -1;
+                if (dir === 'down') player.dirY = 1;
+                if (dir === 'left') player.dirX = -1;
+                if (dir === 'right') player.dirX = 1;
+            });
+            btn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                const player = btn.getAttribute('data-player') === '1' ? players.p1 : players.p2;
+                const dir = btn.getAttribute('data-dir');
+                if (dir === 'up' || dir === 'down') player.dirY = 0;
+                if (dir === 'left' || dir === 'right') player.dirX = 0;
+            });
+        });
+
+        document.querySelectorAll('.touch-action').forEach(btn => {
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const player = btn.getAttribute('data-player') === '1' ? players.p1 : players.p2;
+                if (gameActive) {
+                    handleInteraction(player);
+                }
+            });
+        });
+
+        // 選單按鈕綁定
+        document.getElementById('btnPlaySingle').addEventListener('click', () => {
+            playSound('click');
+            startGame(false);
+        });
+
+        document.getElementById('btnPlayCoop').addEventListener('click', () => {
+            playSound('click');
+            startGame(true);
+        });
+
+        document.getElementById('btnRestart').addEventListener('click', () => {
+            playSound('click');
+            document.getElementById('gameOverOverlay').classList.add('hidden');
+            document.getElementById('gameInstructionOverlay').classList.remove('hidden');
+        });
+
+        // --- 遊戲邏輯控制 ---
+
+        function startGame(coop) {
+            isCoopMode = coop;
+            gameActive = true;
+            gameTime = 120;
+            score = 0;
+            completedCount = 0;
+            failedCount = 0;
+            orders = [];
+            nextOrderId = 1;
+            particles = [];
+            
+            // 重設玩家位置與持有狀態
+            players.p1.x = 250;
+            players.p1.y = 250;
+            players.p1.holding = null;
+            players.p1.dirX = 0;
+            players.p1.dirY = 0;
+
+            if (isCoopMode) {
+                players.p2.x = 450;
+                players.p2.y = 250;
+                players.p2.holding = null;
+                players.p2.dirX = 0;
+                players.p2.dirY = 0;
+                document.getElementById('p2TouchControls').classList.remove('hidden');
+            } else {
+                document.getElementById('p2TouchControls').classList.add('hidden');
+            }
+
+            // 重設靜態設施加工狀態
+            STATIONS.forEach(s => {
+                if (s.processedItem !== undefined) s.processedItem = null;
+                if (s.processProgress !== undefined) s.processProgress = 0;
+                if (s.isCooking !== undefined) s.isCooking = false;
+            });
+
+            // 隱藏遮罩
+            document.getElementById('gameInstructionOverlay').classList.add('hidden');
+            document.getElementById('gameOverOverlay').classList.add('hidden');
+
+            // 產生最初的兩個訂單
+            generateOrder();
+            generateOrder();
+
+            // 啟動計時器 (每秒執行)
+            if (window.gameTimerInterval) clearInterval(window.gameTimerInterval);
+            window.gameTimerInterval = setInterval(() => {
+                if (gameActive) {
+                    gameTime--;
+                    document.getElementById('timerVal').textContent = `${gameTime}s`;
+                    
+                    // 時間到結束
+                    if (gameTime <= 0) {
+                        endGame();
+                    }
+
+                    // 機率產生新訂單
+                    if (gameTime > 10 && Math.random() < 0.28 && orders.length < 5) {
+                        generateOrder();
+                    }
+                }
+            }, 1000);
+
+            // 開始遊戲動畫主循環
+            requestAnimationFrame(gameLoop);
+        }
+
+        function endGame() {
+            gameActive = false;
+            clearInterval(window.gameTimerInterval);
+            
+            // 更新最高分
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('cooking_highscore', highScore);
+                document.getElementById('highScoreVal').textContent = highScore;
+            }
+
+            // 渲染結算數據
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('completedOrders').textContent = `${completedCount} 組`;
+            document.getElementById('failedOrders').textContent = `${failedCount} 組`;
+            
+            document.getElementById('gameOverOverlay').classList.remove('hidden');
+            playSound('fail');
+        }
+
+        // 產生新顧客點單
+        function generateOrder() {
+            const recipe = RECIPES[Math.floor(Math.random() * RECIPES.length)];
+            const order = {
+                id: nextOrderId++,
+                recipe: recipe,
+                timeLeft: 45, // 45 秒等待時間
+                totalTime: 45
+            };
+            orders.push(order);
+            playSound('click');
+            renderOrdersUI();
+        }
+
+        // 渲染訂單 UI 面板
+        function renderOrdersUI() {
+            const container = document.getElementById('orderContainer');
+            container.innerHTML = '';
+            document.getElementById('orderCount').textContent = orders.length;
+
+            orders.forEach(order => {
+                const percentage = (order.timeLeft / order.totalTime) * 100;
+                let barColor = 'bg-green-500';
+                if (percentage < 50) barColor = 'bg-yellow-500';
+                if (percentage < 25) barColor = 'bg-red-500';
+
+                // 食材列表標籤 HTML
+                const ingLabels = order.recipe.ingredients.map(ing => {
+                    let colorClass = 'bg-gray-700 text-gray-200';
+                    if (ing.includes('香煎')) colorClass = 'bg-red-900 text-red-200';
+                    if (ing.includes('生菜')) colorClass = 'bg-green-900 text-green-200';
+                    if (ing.includes('番茄')) colorClass = 'bg-orange-900 text-orange-200';
+                    if (ing.includes('起司')) colorClass = 'bg-yellow-800 text-yellow-100';
+                    return `<span class="px-1.5 py-0.5 rounded text-[10px] ${colorClass}">${ing}</span>`;
+                }).join(' ');
+
+                const orderCard = document.createElement('div');
+                orderCard.className = 'bg-gray-800 p-3 rounded-xl border border-gray-700 flex-shrink-0 w-[200px] lg:w-full flex flex-col gap-1.5 relative overflow-hidden shadow-lg';
+                orderCard.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm font-bold text-white flex items-center gap-1">
+                            <span class="text-base">${order.recipe.icon}</span> ${order.recipe.name}
+                        </span>
+                        <span class="text-xs text-yellow-400 font-extrabold">+${order.recipe.score}分</span>
+                    </div>
+                    <div class="flex flex-wrap gap-1 mt-1">
+                        ${ingLabels}
+                    </div>
+                    <div class="w-full bg-gray-700 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                        <div class="${barColor} h-full transition-all duration-1000" style="width: ${percentage}%"></div>
+                    </div>
+                `;
+                container.appendChild(orderCard);
+            });
+        }
+
+        // --- 核心互動控制 (玩家對工作台發起動作) ---
+
+        // 取得玩家目前最接近且在可互動範圍內的工作台
+        function getActiveStation(player) {
+            let closestStation = null;
+            let minDist = 9999;
+
+            STATIONS.forEach(station => {
+                // 計算玩家圓心至工作台矩形邊框的最短距離 (Bounding Box Distance)
+                const closestX = Math.max(station.x, Math.min(player.x, station.x + station.w));
+                const closestY = Math.max(station.y, Math.min(player.y, station.y + station.h));
+                const dist = Math.hypot(player.x - closestX, player.y - closestY);
+
+                // 玩家半徑是 20，碰撞時與工作台邊緣的距離約為 20px。
+                // 這裡設定 35px（半徑+15）做為寬裕的互動門檻，保證貼近即可互動！
+                if (dist <= player.radius + 15) {
+                    if (dist < minDist) {
+                        minDist = dist;
+                        closestStation = station;
+                    }
+                }
+            });
+            return closestStation;
+        }
+
+        function handleInteraction(player) {
+            // 使用修正後的 Bounding Box 距離尋找當前觸碰的工作台
+            const closestStation = getActiveStation(player);
+
+            if (!closestStation) return;
+
+            // 根據工作台類型進行相應處理邏輯
+            switch (closestStation.type) {
+                
+                case 'box': // 1. 食材箱：拿取原料
+                    if (!player.holding) {
+                        player.holding = {
+                            type: 'ingredient',
+                            name: INGREDIENTS[closestStation.ingredient].name,
+                            isChopped: false,
+                            isCooked: false,
+                            meta: INGREDIENTS[closestStation.ingredient]
+                        };
+                        createSparks(player.x, player.y, '#3498db');
+                        playSound('pickup');
+                    } else if (player.holding.type === 'plate') {
+                        // 如果手拿盤子，也可以直接點擊食材箱加入未加工食材(有些可直接放入，例如起司)
+                        const ingMeta = INGREDIENTS[closestStation.ingredient];
+                        if (!ingMeta.needChop && !ingMeta.needCook) {
+                            // 起司可直接入盤
+                            player.holding.ingredients.push(ingMeta.name);
+                            createSparks(player.x, player.y, '#f1c40f');
+                            playSound('pickup');
+                        }
+                    }
+                    break;
+
+                case 'board': // 2. 切菜砧板
+                    if (player.holding && player.holding.type === 'ingredient' && !closestStation.processedItem) {
+                        // 玩家手拿著還沒切過的食材，放到砧板上
+                        if (player.holding.meta.needChop && !player.holding.isChopped) {
+                            closestStation.processedItem = player.holding;
+                            closestStation.processProgress = 0;
+                            player.holding = null;
+                            playSound('pickup');
+                        }
+                    } else if (player.holding && player.holding.type === 'plate' && closestStation.processedItem) {
+                        // 【優化】手持盤子時，可直接拿取砧板上已經完全處理好的食材
+                        const item = closestStation.processedItem;
+                        if (closestStation.processProgress >= 100 || !item.meta.needChop) {
+                            player.holding.ingredients.push(item.name);
+                            closestStation.processedItem = null;
+                            closestStation.processProgress = 0;
+                            createSparks(player.x, player.y, '#2ecc71');
+                            playSound('pickup');
+                        }
+                    } else if (!player.holding && closestStation.processedItem) {
+                        // 砧板上有東西且手空空：進行加工或拿走
+                        if (closestStation.processProgress < 100) {
+                            // 還沒切好 -> 進行切菜動作！
+                            closestStation.processProgress += 25; // 點擊一次增加25%
+                            createSparks(closestStation.x + 35, closestStation.y + 30, '#fff');
+                            playSound('chop');
+                            if (closestStation.processProgress >= 100) {
+                                closestStation.processedItem.isChopped = true;
+                                closestStation.processedItem.name = closestStation.processedItem.meta.choppedName;
+                            }
+                        } else {
+                            // 切好了 -> 拿起切好的食材
+                            player.holding = closestStation.processedItem;
+                            closestStation.processedItem = null;
+                            closestStation.processProgress = 0;
+                            playSound('pickup');
+                        }
+                    }
+                    break;
+
+                case 'stove': // 3. 瓦斯爐 (烹煮)
+                    if (player.holding && player.holding.type === 'ingredient' && !closestStation.processedItem) {
+                        // 將食材放到瓦斯爐。注意：必須是切碎過的食材才能煮(以牛排為例)
+                        const item = player.holding;
+                        if (item.meta.needCook && (!item.meta.needChop || item.isChopped) && !item.isCooked) {
+                            closestStation.processedItem = item;
+                            closestStation.processProgress = 0;
+                            closestStation.isCooking = true;
+                            player.holding = null;
+                            playSound('cook');
+                        }
+                    } else if (player.holding && player.holding.type === 'plate' && closestStation.processedItem) {
+                        // 【優化】手持盤子時，可直接盛裝瓦斯爐上已經煮熟的牛排
+                        const item = closestStation.processedItem;
+                        if (closestStation.processProgress >= 100) {
+                            player.holding.ingredients.push(item.name);
+                            closestStation.processedItem = null;
+                            closestStation.isCooking = false;
+                            closestStation.processProgress = 0;
+                            createSparks(player.x, player.y, '#2ecc71');
+                            playSound('pickup');
+                        }
+                    } else if (!player.holding && closestStation.processedItem) {
+                        // 瓦斯爐上有熟食，空手可以拿走
+                        if (closestStation.processProgress >= 100) {
+                            player.holding = closestStation.processedItem;
+                            closestStation.processedItem = null;
+                            closestStation.isCooking = false;
+                            closestStation.processProgress = 0;
+                            playSound('pickup');
+                        }
+                    }
+                    break;
+
+                case 'plates': // 4. 盤子區：拿盤子
+                    if (!player.holding) {
+                        // 雙手空空 -> 拿盤子
+                        player.holding = {
+                            type: 'plate',
+                            name: '🍽️ 乾淨盤子',
+                            ingredients: [] // 盛放多個加工後的成品
+                        };
+                        playSound('pickup');
+                    }
+                    break;
+
+                case 'trash': // 5. 垃圾桶：清除手上所有東西
+                    if (player.holding) {
+                        player.holding = null;
+                        createSparks(closestStation.x + 30, closestStation.y + 30, '#7f8c8d');
+                        playSound('fail');
+                    }
+                    break;
+
+                case 'delivery': // 6. 出餐窗口 (比對訂單)
+                    if (player.holding && player.holding.type === 'plate') {
+                        const plate = player.holding;
+                        let matchedOrderIndex = -1;
+
+                        // 遍歷當前訂單進行比對
+                        for (let i = 0; i < orders.length; i++) {
+                            const order = orders[i];
+                            const required = order.recipe.ingredients;
+                            const delivered = plate.ingredients;
+
+                            // 比對成分是否完全吻合 (不計順序)
+                            const isMatch = required.length === delivered.length && 
+                                            required.every(ing => delivered.includes(ing));
+
+                            if (isMatch) {
+                                matchedOrderIndex = i;
+                                break;
+                            }
+                        }
+
+                        if (matchedOrderIndex !== -1) {
+                            // 成功匹配！
+                            const targetOrder = orders[matchedOrderIndex];
+                            score += targetOrder.recipe.score;
+                            completedCount++;
+                            
+                            // 更新分數 UI
+                            document.getElementById('scoreVal').textContent = score;
+
+                            // 特效
+                            createCelebrateSparks(closestStation.x + 60, closestStation.y + 30);
+                            playSound('success');
+
+                            // 移除該訂單並更新
+                            orders.splice(matchedOrderIndex, 1);
+                            renderOrdersUI();
+
+                            // 清空手持盤子
+                            player.holding = null;
+                        } else {
+                            // 食物不符合，上菜失敗
+                            createSparks(player.x, player.y, '#e74c3c');
+                            playSound('fail');
+                        }
+                    }
+                    break;
+            }
+        }
+
+        // --- 輔助邏輯：將手持食材合併到盤子 (雙人近距離交互) ---
+        function tryCombineItems(chef1, chef2) {
+            const dist = Math.hypot(chef1.x - chef2.x, chef1.y - chef2.y);
+            if (dist < 45) {
+                // 玩家 A 拿盤子，玩家 B 拿食材
+                if (chef1.holding && chef1.holding.type === 'plate' && chef2.holding && chef2.holding.type === 'ingredient') {
+                    const ing = chef2.holding;
+                    const needChopOk = !ing.meta.needChop || ing.isChopped;
+                    const needCookOk = !ing.meta.needCook || ing.isCooked;
+
+                    if (needChopOk && needCookOk) {
+                        chef1.holding.ingredients.push(ing.name);
+                        chef2.holding = null;
+                        createSparks(chef1.x, chef1.y, '#2ecc71');
+                        playSound('pickup');
+                    }
+                }
+                // 玩家 B 拿盤子，玩家 A 拿食材 (反之亦然)
+                else if (chef2.holding && chef2.holding.type === 'plate' && chef1.holding && chef1.holding.type === 'ingredient') {
+                    const ing = chef1.holding;
+                    const needChopOk = !ing.meta.needChop || ing.isChopped;
+                    const needCookOk = !ing.meta.needCook || ing.isCooked;
+
+                    if (needChopOk && needCookOk) {
+                        chef2.holding.ingredients.push(ing.name);
+                        chef1.holding = null;
+                        createSparks(chef2.x, chef2.y, '#2ecc71');
+                        playSound('pickup');
+                    }
+                }
+            }
+        }
+
+        // --- 自動烹飪進度更新 ---
+        function updateStovesAndBoards() {
+            STATIONS.forEach(station => {
+                if (station.type === 'stove' && station.isCooking && station.processedItem) {
+                    if (station.processProgress < 100) {
+                        station.processProgress += 0.3; // 自動慢速烹調
+                        if (station.processProgress >= 100) {
+                            station.processedItem.isCooked = true;
+                            station.processedItem.name = station.processedItem.meta.cookedName;
+                            createSparks(station.x + 35, station.y + 30, '#e67e22');
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- 粒子特效系統 ---
+        function createSparks(x, y, color) {
+            for (let i = 0; i < 8; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: (Math.random() - 0.5) * 6,
+                    radius: Math.random() * 3 + 2,
+                    color: color,
+                    alpha: 1,
+                    decay: Math.random() * 0.05 + 0.02
+                });
+            }
+        }
+
+        function createCelebrateSparks(x, y) {
+            const colors = ['#f1c40f', '#2ecc71', '#3498db', '#e74c3c', '#9b59b6'];
+            for (let i = 0; i < 30; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 12,
+                    vy: (Math.random() - 0.7) * 12,
+                    radius: Math.random() * 4 + 2,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    alpha: 1,
+                    decay: Math.random() * 0.03 + 0.01
+                });
+            }
+        }
+
+        function drawParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.fill();
+                ctx.restore();
+
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= p.decay;
+
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+
+        // --- 主繪製與更新渲染循環 ---
+
+        function updateGame() {
+            if (!gameActive) return;
+
+            // 更新訂單剩餘時間
+            for (let i = orders.length - 1; i >= 0; i--) {
+                orders[i].timeLeft -= 1 / 60; // 假設 60 FPS
+                if (orders[i].timeLeft <= 0) {
+                    orders.splice(i, 1);
+                    failedCount++;
+                    playSound('fail');
+                    renderOrdersUI();
+                }
+            }
+
+            // 更新瓦斯爐
+            updateStovesAndBoards();
+
+            // 玩家 1 移動控制 (WASD)
+            players.p1.dirX = 0;
+            players.p1.dirY = 0;
+            if (keys['KeyW']) players.p1.dirY = -1;
+            if (keys['KeyS']) players.p1.dirY = 1;
+            if (keys['KeyA']) players.p1.dirX = -1;
+            if (keys['KeyD']) players.p1.dirX = 1;
+
+            movePlayer(players.p1);
+
+            // 玩家 2 移動控制 (方向鍵)
+            if (isCoopMode) {
+                players.p2.dirX = 0;
+                players.p2.dirY = 0;
+                if (keys['ArrowUp']) players.p2.dirY = -1;
+                if (keys['ArrowDown']) players.p2.dirY = 1;
+                if (keys['ArrowLeft']) players.p2.dirX = -1;
+                if (keys['ArrowRight']) players.p2.dirX = 1;
+
+                movePlayer(players.p2);
+                
+                // 檢查玩家 A、B 食材互相合盤
+                tryCombineItems(players.p1, players.p2);
+            }
+        }
+
+        function movePlayer(player) {
+            // 計算對角線移動速度平衡
+            let dx = player.dirX;
+            let dy = player.dirY;
+            if (dx !== 0 && dy !== 0) {
+                dx *= 0.7071;
+                dy *= 0.7071;
+            }
+
+            const nextX = player.x + dx * player.speed;
+            const nextY = player.y + dy * player.speed;
+
+            // 邊界限制碰撞 (防跑出畫布)
+            if (nextX > player.radius && nextX < canvas.width - player.radius) {
+                player.x = nextX;
+            }
+            if (nextY > player.radius && nextY < canvas.height - player.radius) {
+                player.y = nextY;
+            }
+
+            // 廚房設施碰撞阻擋
+            STATIONS.forEach(station => {
+                const sCenterX = station.x + station.w / 2;
+                const sCenterY = station.y + station.h / 2;
+                
+                // 檢查是否與矩形相交，若相交則退回
+                const closestX = Math.max(station.x, Math.min(player.x, station.x + station.w));
+                const closestY = Math.max(station.y, Math.min(player.y, station.y + station.h));
+                const distance = Math.hypot(player.x - closestX, player.y - closestY);
+
+                if (distance < player.radius) {
+                    // 簡單推回碰撞向量
+                    const overlap = player.radius - distance;
+                    const pushX = (player.x - closestX) / (distance || 1);
+                    const pushY = (player.y - closestY) / (distance || 1);
+                    player.x += pushX * overlap;
+                    player.y += pushY * overlap;
+                }
+            });
+        }
+
+        function drawGame() {
+            // 清空畫布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 取得當前大廚的焦點工作台
+            const activeP1 = getActiveStation(players.p1);
+            const activeP2 = isCoopMode ? getActiveStation(players.p2) : null;
+
+            // 1. 繪製地板線條 (格線美化)
+            ctx.strokeStyle = '#2c3e50';
+            ctx.lineWidth = 1;
+
+            // 2. 繪製所有廚房靜態設施工作台
+            STATIONS.forEach(station => {
+                // 繪製工作台陰影
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.fillRect(station.x + 4, station.y + 4, station.w, station.h);
+
+                // 【優化】繪製互動高亮提示外框，使玩家互動時反饋極佳
+                const isTargetedP1 = (activeP1 && activeP1.id === station.id);
+                const isTargetedP2 = (activeP2 && activeP2.id === station.id);
+                if (isTargetedP1 || isTargetedP2) {
+                    ctx.save();
+                    ctx.strokeStyle = isTargetedP1 ? 'rgba(59, 130, 246, 0.9)' : 'rgba(239, 68, 68, 0.9)';
+                    if (isTargetedP1 && isTargetedP2) ctx.strokeStyle = 'rgba(168, 85, 247, 0.9)'; // 兩人重疊則為紫色
+                    ctx.lineWidth = 4;
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = isTargetedP1 ? '#3b82f6' : '#ef4444';
+                    ctx.strokeRect(station.x - 3, station.y - 3, station.w + 6, station.h + 6);
+                    ctx.restore();
+                }
+
+                // 繪製工作台主體
+                ctx.fillStyle = station.color;
+                ctx.fillRect(station.x, station.y, station.w, station.h);
+                
+                // 工作台亮邊
+                ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(station.x, station.y, station.w, station.h);
+
+                // 工作台標題文字
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 12px Noto Sans TC';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(station.label, station.x + station.w / 2, station.y + 20);
+
+                // 如果是食材箱，額外畫食材預覽
+                if (station.type === 'box') {
+                    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+                    ctx.fillRect(station.x + 5, station.y + 30, station.w - 10, station.h - 35);
+                }
+
+                // 繪製加工中之進度與食材狀態
+                if ((station.type === 'board' || station.type === 'stove') && station.processedItem) {
+                    const item = station.processedItem;
+                    
+                    // 繪製檯面上的食材名稱
+                    ctx.fillStyle = '#f1c40f';
+                    ctx.font = '10px Noto Sans TC';
+                    ctx.fillText(item.name, station.x + station.w / 2, station.y + 35);
+
+                    // 繪製進度條背景
+                    ctx.fillStyle = '#34495e';
+                    ctx.fillRect(station.x + 10, station.y + 45, station.w - 20, 6);
+
+                    // 繪製進度
+                    let barColor = '#3498db';
+                    if (station.type === 'stove') barColor = '#e67e22';
+                    if (station.processProgress >= 100) barColor = '#2ecc71';
+
+                    ctx.fillStyle = barColor;
+                    ctx.fillRect(station.x + 10, station.y + 45, (station.w - 20) * (station.processProgress / 100), 6);
+                }
+            });
+
+            // 3. 繪製玩家 1 (藍大廚)
+            drawChef(players.p1);
+
+            // 4. 繪製玩家 2 (紅大廚)
+            if (isCoopMode) {
+                drawChef(players.p2);
+            }
+
+            // 5. 繪製粒子特效
+            drawParticles();
+        }
+
+        // 繪製大廚人物與他所手持的食材
+        function drawChef(player) {
+            // 角色黑邊陰影
+            ctx.beginPath();
+            ctx.arc(player.x + 2, player.y + 4, player.radius, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            ctx.fill();
+
+            // 角色本體
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+            ctx.fillStyle = player.color;
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // 主廚高帽子 SVG/畫圖
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(player.x - 12, player.y - player.radius + 3);
+            ctx.bezierCurveTo(player.x - 18, player.y - player.radius - 15, player.x + 18, player.y - player.radius - 15, player.x + 12, player.y - player.radius + 3);
+            ctx.fill();
+            ctx.strokeStyle = '#333333';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // 帽子摺邊
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillRect(player.x - 10, player.y - player.radius - 1, 20, 4);
+
+            // 玩家識別名字標籤
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 10px Noto Sans TC';
+            ctx.textAlign = 'center';
+            ctx.fillText(player.name, player.x, player.y + player.radius + 15);
+
+            // 繪製持有之食材 / 盤子
+            if (player.holding) {
+                const item = player.holding;
+                
+                // 盤子或食材容器背景
+                ctx.save();
+                ctx.translate(player.x, player.y - 30); // 浮在頭上
+
+                if (item.type === 'plate') {
+                    // 畫一個乾淨漂亮的盤子
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 16, 0, Math.PI * 2);
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.fill();
+                    ctx.strokeStyle = '#cbd5e1';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    // 內圈
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 11, 0, Math.PI * 2);
+                    ctx.strokeStyle = '#e2e8f0';
+                    ctx.stroke();
+
+                    // 繪製盤子裡的料理組合
+                    if (item.ingredients.length > 0) {
+                        ctx.fillStyle = '#334155';
+                        ctx.font = 'bold 8px Noto Sans TC';
+                        
+                        // 多種食材顯示縮圖或文字
+                        let offset = -4;
+                        item.ingredients.forEach((ing, idx) => {
+                            let emoji = '🍔';
+                            if (ing.includes('牛排')) emoji = '🥩';
+                            if (ing.includes('生菜')) emoji = '🥬';
+                            if (ing.includes('番茄')) emoji = '🍅';
+                            if (ing.includes('起司')) emoji = '🧀';
+                            
+                            ctx.font = '10px sans-serif';
+                            ctx.fillText(emoji, offset + (idx * 6), 2);
+                        });
+                    }
+                } else {
+                    // 純食材：畫食材的底色跟名字
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 12, 0, Math.PI * 2);
+                    ctx.fillStyle = item.meta.color;
+                    ctx.fill();
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '9px Noto Sans TC';
+                    ctx.fillText(item.name.substring(0, 2), 0, 3); // 截取前面Emoji代表
+                }
+                ctx.restore();
+            }
+        }
+
+        // --- 核心動力迴圈 ---
+
+        function gameLoop() {
+            if (gameActive) {
+                updateGame();
+                drawGame();
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        // 一開始載入時，先畫出一張靜止的廚房底圖展示給玩家
+        window.onload = function() {
+            drawGame();
+        };
+    </script>
+</body>
+</html>
